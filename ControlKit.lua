@@ -9,6 +9,8 @@ local DEFAULT_SCALE = 1.0
 local DEFAULT_SIZE = 18
 local DEFAULT_OFFSET_X = 2
 local DEFAULT_OFFSET_Y = -2
+local OUT_OF_RANGE_ALPHA = 0.5  -- Opacity when out of casting range
+local IN_RANGE_ALPHA = 1.0     -- Opacity when in range
 
 -- Action bar configurations
 -- prefix: button name prefix, modifier: glyph file for modifier key (nil for main bar)
@@ -51,6 +53,51 @@ end
 -- Get the current glyph size based on scale
 local function GetGlyphSize()
     return DEFAULT_SIZE * (ControlKitDB.scale or DEFAULT_SCALE)
+end
+
+-- Update glyph opacity based on action range
+-- This mimics the default hotkey behavior of fading when out of range
+local function UpdateGlyphRange(button)
+    if not button then return end
+    
+    local dominated    -- Get the action ID for this button
+    local action = nil
+    if button.action then
+        action = button.action
+    elseif ActionButton_GetPagedID then
+        action = ActionButton_GetPagedID(button)
+    end
+    
+    if not action then return end
+    
+    -- Check if action is in range (returns 1=in range, 0=out of range, nil=no range check)
+    local inRange = IsActionInRange(action)
+    local alpha = IN_RANGE_ALPHA
+    
+    if inRange == 0 then
+        -- Out of range - reduce opacity
+        alpha = OUT_OF_RANGE_ALPHA
+    end
+    
+    -- Apply alpha to main glyph
+    if button.ControlKitGlyph then
+        button.ControlKitGlyph:SetAlpha(alpha)
+    end
+    
+    -- Apply alpha to modifier glyph if present
+    if button.ControlKitModifier then
+        button.ControlKitModifier:SetAlpha(alpha)
+    end
+end
+
+-- OnUpdate handler for range checking
+local function GlyphRangeOnUpdate(button, elapsed)
+    -- Throttle updates to every 0.1 seconds for performance
+    button.ControlKitRangeTimer = (button.ControlKitRangeTimer or 0) + elapsed
+    if button.ControlKitRangeTimer >= 0.1 then
+        button.ControlKitRangeTimer = 0
+        UpdateGlyphRange(button)
+    end
 end
 
 -- Create or update the glyph overlay on a button
@@ -116,6 +163,20 @@ local function SetupGlyphOverlay(button, slot, modifier)
         hotkey:Hide()
         -- Also set text to empty to prevent it from showing on updates
         hotkey:SetText("")
+    end
+    
+    -- Hook OnUpdate for range checking (only once per button)
+    if not button.ControlKitRangeHooked then
+        local oldOnUpdate = button:GetScript("OnUpdate")
+        button:SetScript("OnUpdate", function()
+            -- Call original OnUpdate if it exists
+            if oldOnUpdate then
+                oldOnUpdate()
+            end
+            -- Update glyph opacity based on range
+            GlyphRangeOnUpdate(this, arg1 or 0.01)
+        end)
+        button.ControlKitRangeHooked = true
     end
 end
 
