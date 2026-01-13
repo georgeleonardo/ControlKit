@@ -214,17 +214,23 @@ end
 local function UpdateGlyphRange(button)
     if not button then return end
     
-    local dominated    -- Get the action ID for this button
+    -- Get the action ID for this button
     local action = nil
     if button.action then
         action = button.action
     elseif ActionButton_GetPagedID then
+        -- ActionButton_GetPagedID exists in standard Vanilla UI
         action = ActionButton_GetPagedID(button)
+    elseif button:GetID() then
+        -- Fallback: use button ID directly
+        action = button:GetID()
     end
     
     if not action then return end
     
     -- Check if action is in range (returns 1=in range, 0=out of range, nil=no range check)
+    -- IsActionInRange may not exist in all Vanilla clients
+    if not IsActionInRange then return end
     local inRange = IsActionInRange(action)
     local alpha = IN_RANGE_ALPHA
     
@@ -513,7 +519,10 @@ local function CreateOptionsPanel()
     scaleSlider:SetHeight(17)
     scaleSlider:SetMinMaxValues(0.5, 2.0)
     scaleSlider:SetValueStep(0.1)
-    scaleSlider:SetObeyStepOnDrag(true)
+    -- SetObeyStepOnDrag may not exist in all Vanilla clients
+    if scaleSlider.SetObeyStepOnDrag then
+        scaleSlider:SetObeyStepOnDrag(true)
+    end
     scaleSlider:SetValue(ControlKitDB.scale or DEFAULT_SCALE)
     
     getglobal(scaleSlider:GetName() .. "Low"):SetText("0.5")
@@ -1007,9 +1016,10 @@ local function HookActionButtonClicks()
                 button:SetScript("OnClick", function()
                     -- Check for Alt+Click to open glyph picker
                     if IsAltKeyDown() and arg1 == "LeftButton" then
-                        -- Get the bar prefix from the button name
+                        -- Get the bar prefix from the button name (Lua 5.0 compatible)
                         local prefix = string.gsub(this:GetName(), "%d+$", "")
-                        local slotNum = tonumber(string.match(this:GetName(), "(%d+)$"))
+                        local _, _, slotStr = string.find(this:GetName(), "(%d+)$")
+                        local slotNum = tonumber(slotStr)
                         
                         ShowGlyphPicker(prefix, slotNum, this, function()
                             UpdateAllGlyphs()
@@ -1100,8 +1110,8 @@ local function SlashHandler(msg)
         return
     end
 
-    -- Parse command and arguments
-    local cmd, arg1 = string.match(msg, "^(%S+)%s*(.*)$")
+    -- Parse command and arguments (Lua 5.0 compatible)
+    local _, _, cmd, arg1 = string.find(msg, "^(%S+)%s*(.*)$")
     cmd = string.lower(cmd or "")
     
     if cmd == "config" or cmd == "options" or cmd == "opt" then
