@@ -798,6 +798,8 @@ end
 --------------------------------------------------------------------------------
 
 local BarEditorPanel = nil
+local RefreshBarEditorSlots  -- Forward declaration
+local ShowBarEditor          -- Forward declaration
 
 local function CreateBarEditorPanel()
     if BarEditorPanel then return BarEditorPanel end
@@ -961,7 +963,7 @@ local function CreateBarEditorPanel()
 end
 
 -- Refresh the bar editor slot displays
-local function RefreshBarEditorSlots()
+RefreshBarEditorSlots = function()
     if not BarEditorPanel then return end
     
     for barPrefix, slots in pairs(BarEditorPanel.barSlots) do
@@ -981,7 +983,7 @@ local function RefreshBarEditorSlots()
 end
 
 -- Show the bar editor
-local function ShowBarEditor()
+ShowBarEditor = function()
     local editor = CreateBarEditorPanel()
     RefreshBarEditorSlots()
     editor:Show()
