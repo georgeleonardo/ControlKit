@@ -7,6 +7,7 @@ ControlKitDB = ControlKitDB or {}
 -- Default settings
 local DEFAULT_SCALE = 1.0
 local DEFAULT_STYLE = "xbox"
+local DEFAULT_ENABLED = true
 local DEFAULT_SIZE = 18
 local DEFAULT_OFFSET_X = 2
 local DEFAULT_OFFSET_Y = -2
@@ -35,6 +36,25 @@ local CONTROLLER_STYLES = {
         lb = "xbox_s_lb",  -- Left Bumper (Shift modifier)
         rb = "xbox_s_rb",  -- Right Bumper (Alt modifier)
     },
+    steamdeck = {
+        name = "Steam Deck",
+        glyphs = {
+            [1]  = "xbox_s_lt",     -- L2 (Left Trigger)
+            [2]  = "xbox_s_rt",     -- R2 (Right Trigger)
+            [3]  = "all_g_left",    -- L4 (Left Back Grip)
+            [4]  = "all_g_right",   -- R4 (Right Back Grip)
+            [5]  = "xbox_r_a",      -- A
+            [6]  = "xbox_r_x",      -- X
+            [7]  = "xbox_r_y",      -- Y
+            [8]  = "xbox_r_b",      -- B
+            [9]  = "dpad_down",     -- D-Pad Down
+            [10] = "dpad_left",     -- D-Pad Left
+            [11] = "dpad_up",       -- D-Pad Up
+            [12] = "dpad_right",    -- D-Pad Right
+        },
+        lb = "xbox_s_lb",  -- L1 (Shift modifier)
+        rb = "xbox_s_rb",  -- R1 (Alt modifier)
+    },
     playstation = {
         name = "PlayStation",
         glyphs = {
@@ -57,7 +77,7 @@ local CONTROLLER_STYLES = {
 }
 
 -- Available style names for iteration
-local STYLE_LIST = { "xbox", "playstation" }
+local STYLE_LIST = { "xbox", "steamdeck", "playstation" }
 
 -- Get current controller style config
 local function GetCurrentStyle()
@@ -89,6 +109,14 @@ local function InitDB()
     if ControlKitDB.style == nil then
         ControlKitDB.style = DEFAULT_STYLE
     end
+    if ControlKitDB.enabled == nil then
+        ControlKitDB.enabled = DEFAULT_ENABLED
+    end
+end
+
+-- Check if glyphs are enabled
+local function IsEnabled()
+    return ControlKitDB.enabled ~= false
 end
 
 -- Get the current glyph size based on scale
@@ -222,8 +250,39 @@ local function SetupGlyphOverlay(button, slot, modifier)
     end
 end
 
+-- Hide all glyphs and restore default hotkey text
+local function HideAllGlyphs()
+    local actionBars = GetActionBars()
+    for _, barConfig in ipairs(actionBars) do
+        for slot = 1, 12 do
+            local buttonName = barConfig.prefix .. slot
+            local button = getglobal(buttonName)
+            if button then
+                -- Hide glyph overlays
+                if button.ControlKitGlyph then
+                    button.ControlKitGlyph:Hide()
+                end
+                if button.ControlKitModifier then
+                    button.ControlKitModifier:Hide()
+                end
+                -- Restore default hotkey text
+                local hotkey = getglobal(button:GetName() .. "HotKey")
+                if hotkey then
+                    hotkey:Show()
+                end
+            end
+        end
+    end
+end
+
 -- Update all action button glyphs across all configured bars
 local function UpdateAllGlyphs()
+    -- If disabled, hide glyphs and return
+    if not IsEnabled() then
+        HideAllGlyphs()
+        return
+    end
+    
     local actionBars = GetActionBars()
     for _, barConfig in ipairs(actionBars) do
         for slot = 1, 12 do
@@ -281,7 +340,7 @@ local function CreateOptionsPanel()
     -- Main options frame
     local frame = CreateFrame("Frame", "ControlKitOptionsFrame", UIParent)
     frame:SetWidth(280)
-    frame:SetHeight(200)
+    frame:SetHeight(230)
     frame:SetPoint("CENTER", UIParent, "CENTER", 0, 50)
     frame:SetBackdrop({
         bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
@@ -307,9 +366,25 @@ local function CreateOptionsPanel()
     closeBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -5, -5)
     closeBtn:SetScript("OnClick", function() frame:Hide() end)
     
+    -- Enable Checkbox
+    local enableCheck = CreateFrame("CheckButton", "ControlKitEnableCheck", frame, "OptionsCheckButtonTemplate")
+    enableCheck:SetPoint("TOPLEFT", frame, "TOPLEFT", 20, -50)
+    enableCheck:SetChecked(ControlKitDB.enabled ~= false)
+    getglobal(enableCheck:GetName() .. "Text"):SetText("Enable Controller Glyphs")
+    enableCheck:SetScript("OnClick", function()
+        ControlKitDB.enabled = this:GetChecked() == 1
+        UpdateAllGlyphs()
+        if ControlKitDB.enabled then
+            Print("Glyphs enabled.")
+        else
+            Print("Glyphs disabled.")
+        end
+    end)
+    frame.enableCheck = enableCheck
+    
     -- Controller Style Label
     local styleLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    styleLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 25, -55)
+    styleLabel:SetPoint("TOPLEFT", enableCheck, "BOTTOMLEFT", 5, -10)
     styleLabel:SetText("Controller Style:")
     
     -- Controller Style Dropdown
@@ -399,6 +474,9 @@ local function ToggleOptionsPanel()
         panel:Hide()
     else
         -- Refresh UI values before showing
+        if panel.enableCheck then
+            panel.enableCheck:SetChecked(ControlKitDB.enabled ~= false)
+        end
         if panel.styleDropdown then
             UIDropDownMenu_SetSelectedValue(panel.styleDropdown, ControlKitDB.style or DEFAULT_STYLE)
             UIDropDownMenu_SetText(GetCurrentStyle().name, panel.styleDropdown)
@@ -408,6 +486,46 @@ local function ToggleOptionsPanel()
         end
         panel:Show()
     end
+end
+
+-- Toggle glyphs on/off
+local function ToggleEnabled()
+    ControlKitDB.enabled = not IsEnabled()
+    UpdateAllGlyphs()
+    if ControlKitDB.enabled then
+        Print("Glyphs enabled.")
+    else
+        Print("Glyphs disabled.")
+    end
+end
+
+--------------------------------------------------------------------------------
+-- Game Menu (ESC) Button
+--------------------------------------------------------------------------------
+
+local function CreateGameMenuButton()
+    -- Create ControlKit button for the game menu
+    local menuButton = CreateFrame("Button", "GameMenuButtonControlKit", GameMenuFrame, "GameMenuButtonTemplate")
+    menuButton:SetText("ControlKit")
+    menuButton:SetScript("OnClick", function()
+        PlaySound("igMainMenuOption")
+        HideUIPanel(GameMenuFrame)
+        ToggleOptionsPanel()
+    end)
+    
+    -- Position the button above the Options button
+    -- We need to move some buttons down to make room
+    local buttonHeight = GameMenuButtonOptions:GetHeight() + 1
+    
+    -- Move buttons down to make room for ControlKit
+    GameMenuButtonOptions:ClearAllPoints()
+    GameMenuButtonOptions:SetPoint("TOP", menuButton, "BOTTOM", 0, -1)
+    
+    -- Position ControlKit button where Options was (below UIOptions/Video)
+    menuButton:SetPoint("TOP", GameMenuButtonUIOptions, "BOTTOM", 0, -1)
+    
+    -- Expand the game menu frame to fit the new button
+    GameMenuFrame:SetHeight(GameMenuFrame:GetHeight() + buttonHeight)
 end
 
 -- Slash command handler
@@ -430,10 +548,32 @@ local function SlashHandler(msg)
     if cmd == "help" then
         Print("Commands:")
         Print("  /ck - Open options panel")
-        Print("  /ck style <xbox|playstation> - Change controller style")
+        Print("  /ck toggle - Toggle glyphs on/off")
+        Print("  /ck enable - Enable glyphs")
+        Print("  /ck disable - Disable glyphs")
+        Print("  /ck style <xbox|steamdeck|playstation> - Change controller style")
         Print("  /ck scale <number> - Set glyph scale (default: 1.0)")
         Print("  /ck reset - Reset to default settings")
         Print("  /ck status - Show current settings")
+        return
+    end
+    
+    if cmd == "toggle" then
+        ToggleEnabled()
+        return
+    end
+    
+    if cmd == "enable" or cmd == "on" then
+        ControlKitDB.enabled = true
+        UpdateAllGlyphs()
+        Print("Glyphs enabled.")
+        return
+    end
+    
+    if cmd == "disable" or cmd == "off" then
+        ControlKitDB.enabled = false
+        UpdateAllGlyphs()
+        Print("Glyphs disabled.")
         return
     end
 
@@ -444,7 +584,7 @@ local function SlashHandler(msg)
             UpdateAllGlyphs()
             Print("Controller style set to: " .. CONTROLLER_STYLES[styleName].name)
         else
-            Print("Available styles: xbox, playstation")
+            Print("Available styles: xbox, steamdeck, playstation")
             Print("Current style: " .. GetCurrentStyle().name)
         end
     elseif cmd == "scale" then
@@ -460,9 +600,12 @@ local function SlashHandler(msg)
     elseif cmd == "reset" then
         ControlKitDB.scale = DEFAULT_SCALE
         ControlKitDB.style = DEFAULT_STYLE
+        ControlKitDB.enabled = DEFAULT_ENABLED
         UpdateAllGlyphs()
         Print("Settings reset to defaults.")
     elseif cmd == "status" then
+        local enabledText = IsEnabled() and "|cff00ff00Enabled|r" or "|cffff0000Disabled|r"
+        Print("Glyphs: " .. enabledText)
         Print("Controller style: " .. GetCurrentStyle().name)
         Print("Current scale: " .. (ControlKitDB.scale or DEFAULT_SCALE))
         Print("Glyph size: " .. GetGlyphSize() .. "px")
@@ -481,6 +624,7 @@ SlashCmdList["CONTROLKIT"] = SlashHandler
 ControlKit:SetScript("OnEvent", function()
     if event == "PLAYER_ENTERING_WORLD" then
         InitDB()
+        CreateGameMenuButton()
         UpdateAllGlyphs()
         Print("Loaded. Type /ck to open options.")
     elseif event == "ACTIONBAR_PAGE_CHANGED" then

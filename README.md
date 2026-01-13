@@ -47,8 +47,10 @@ A World of Warcraft addon for Vanilla (1.12.x) that displays controller glyph ic
 | Command | Description |
 |---------|-------------|
 | `/ck` | Open the options panel |
-| `/ck config` | Open the options panel |
-| `/ck style <xbox\|playstation>` | Switch controller glyph style |
+| `/ck toggle` | Toggle glyphs on/off |
+| `/ck enable` | Enable glyphs |
+| `/ck disable` | Disable glyphs |
+| `/ck style <xbox\|steamdeck\|playstation>` | Switch controller glyph style |
 | `/ck scale <number>` | Set glyph scale (0.5 - 2.0, default: 1.0) |
 | `/ck reset` | Reset to default settings |
 | `/ck status` | Show current settings |
@@ -56,8 +58,13 @@ A World of Warcraft addon for Vanilla (1.12.x) that displays controller glyph ic
 
 ## Options Panel
 
-Type `/ck` to open the graphical options panel where you can:
-- **Select Controller Style** - Choose between Xbox and PlayStation glyphs via dropdown
+There are multiple ways to access the options:
+- **Game Menu** - Press ESC and click "ControlKit" button
+- **Slash Command** - Type `/ck` to open the panel
+
+The options panel allows you to:
+- **Enable/Disable Glyphs** - Toggle controller glyphs on/off (useful when switching to keyboard/mouse)
+- **Select Controller Style** - Choose between Xbox, Steam Deck, and PlayStation glyphs via dropdown
 - **Adjust Glyph Scale** - Use the slider to resize icons (0.5x to 2.0x)
 - **Reset** - Restore all settings to defaults
 
@@ -66,10 +73,13 @@ The panel is draggable and closes with ESC.
 ## Controller Styles
 
 ### Xbox (default)
-LT, RT, LB, RB, A, B, X, Y, LSB, RSB, D-Pad
+LT, RT, LB, RB, A, B, X, Y, P1, P2, D-Pad
+
+### Steam Deck
+Uses Xbox-style glyphs (A, B, X, Y) - same button labels as Steam Deck
 
 ### PlayStation
-L2, R2, L1, R1, Cross, Circle, Square, Triangle, L3, R3, D-Pad
+L2, R2, L1, R1, Cross, Circle, Square, Triangle, P1, P2, D-Pad
 
 ## Credits
 
