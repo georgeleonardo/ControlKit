@@ -1,8 +1,14 @@
 -- ControlKit: Controller Glyph Overlay for Action Bars
 -- Vanilla WoW (1.12.x) Addon
 
+-- DEBUG: Test if file loads at all
+CONTROLKIT_DEBUG = "File started loading"
+
 -- Saved variables (persisted across sessions)
 ControlKitDB = ControlKitDB or {}
+
+-- DEBUG: Test if we get past saved variables
+CONTROLKIT_DEBUG = "Past saved variables"
 
 -- Default settings
 local DEFAULT_SCALE = 1.0
@@ -1226,3 +1232,6 @@ ControlKit:RegisterEvent("PLAYER_ENTERING_WORLD")
 ControlKit:RegisterEvent("ACTIONBAR_PAGE_CHANGED")
 ControlKit:RegisterEvent("ACTIONBAR_SLOT_CHANGED")
 ControlKit:RegisterEvent("UPDATE_BINDINGS")
+
+-- DEBUG: File finished loading completely
+CONTROLKIT_DEBUG = "File loaded completely"
