@@ -7,23 +7,26 @@ A World of Warcraft addon for Vanilla (1.12.x) that displays controller glyph ic
 
 ## Features
 
-- **Multiple controller styles** - Xbox and PlayStation glyph sets
+- **Multiple controller styles** - Xbox, Steam Deck, and PlayStation glyph sets
 - **Controller glyph overlays** on action bar buttons
 - **Multi-bar support** for three action bars:
   - Main Action Bar (no modifier)
   - Bottom Left Bar with **LB/L1 (Shift)** modifier display
   - Bottom Right Bar with **RB/R1 (Alt)** modifier display
 - **Composite glyph display** showing modifier + button combinations (e.g., LB + RT)
+- **Custom glyph mapping** - Customize individual button glyphs via the bar editor or Alt+Click
 - **Range indicator** - Glyphs fade to 50% opacity when out of casting range
-- **Scalable icons** via slash commands
+- **Scalable icons** via slash commands or the options panel
 - Hides default hotkey text for a cleaner look
 
 ## Installation
 
 1. Download or clone this repository
-2. Copy the `Interface` folder to your WoW directory (e.g., `World of Warcraft/`)
+2. Copy the `ControlKit` folder to your WoW AddOns directory: `World of Warcraft/Interface/AddOns/`
 3. The addon should appear at: `World of Warcraft/Interface/AddOns/ControlKit/`
 4. Restart WoW or type `/reload` if already in-game
+
+**Note:** If using an addon manager, the repository is structured for direct installation.
 
 ## Button Mapping
 
@@ -47,6 +50,7 @@ A World of Warcraft addon for Vanilla (1.12.x) that displays controller glyph ic
 | Command | Description |
 |---------|-------------|
 | `/ck` | Open the options panel |
+| `/ck customize` | Open glyph customization panel |
 | `/ck toggle` | Toggle glyphs on/off |
 | `/ck enable` | Enable glyphs |
 | `/ck disable` | Disable glyphs |
@@ -66,9 +70,35 @@ The options panel allows you to:
 - **Enable/Disable Glyphs** - Toggle controller glyphs on/off (useful when switching to keyboard/mouse)
 - **Select Controller Style** - Choose between Xbox, Steam Deck, and PlayStation glyphs via dropdown
 - **Adjust Glyph Scale** - Use the slider to resize icons (0.5x to 2.0x)
+- **Customize Glyphs** - Open the bar editor to customize individual button glyphs
 - **Reset** - Restore all settings to defaults
 
 The panel is draggable and closes with ESC.
+
+## Glyph Customization
+
+ControlKit allows you to customize the glyph shown on each action bar button:
+
+### Bar Editor
+Access via `/ck customize` or the "Customize Glyphs" button in the options panel.
+- Shows all three action bars as clickable grids
+- Click any slot to open the glyph picker
+- Customized slots are highlighted with a green border
+- "Reset All to Defaults" clears all custom mappings
+
+### Alt+Click Quick Edit
+- Hold Alt and left-click any action button to open the glyph picker for that slot
+- Useful for quick adjustments without opening the full editor
+
+### Glyph Picker
+- Face Buttons: A, B, X, Y (Xbox) / Cross, Circle, Square, Triangle (PlayStation)
+- Triggers/Bumpers: LT, RT, LB, RB / L1, L2, R1, R2
+- D-Pad: Up, Down, Left, Right
+- Other: P1, P2 (Paddles), L3, R3 (Stick buttons)
+- "Default" button reverts to the controller style's default glyph
+- "Clear" button removes the glyph entirely
+
+Custom glyphs are saved per-character and persist across sessions.
 
 ## Controller Styles
 

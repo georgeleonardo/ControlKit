@@ -79,6 +79,52 @@ local CONTROLLER_STYLES = {
 -- Available style names for iteration
 local STYLE_LIST = { "xbox", "steamdeck", "playstation" }
 
+-- All available glyphs for the picker (organized by category)
+local AVAILABLE_GLYPHS = {
+    face = {
+        { id = "xbox_r_a", label = "A" },
+        { id = "xbox_r_b", label = "B" },
+        { id = "xbox_r_x", label = "X" },
+        { id = "xbox_r_y", label = "Y" },
+    },
+    triggers = {
+        { id = "xbox_s_lt", label = "LT" },
+        { id = "xbox_s_rt", label = "RT" },
+        { id = "xbox_s_lb", label = "LB" },
+        { id = "xbox_s_rb", label = "RB" },
+    },
+    dpad = {
+        { id = "dpad_up", label = "Up" },
+        { id = "dpad_down", label = "Down" },
+        { id = "dpad_left", label = "Left" },
+        { id = "dpad_right", label = "Right" },
+    },
+    other = {
+        { id = "all_g_left", label = "P1" },
+        { id = "all_g_right", label = "P2" },
+        { id = "xbox_s_lsb", label = "L3" },
+        { id = "xbox_s_rsb", label = "R3" },
+    },
+    playstation = {
+        { id = "ps_r_cross", label = "Cross" },
+        { id = "ps_r_circle", label = "Circle" },
+        { id = "ps_r_square", label = "Square" },
+        { id = "ps_r_triangle", label = "Triangle" },
+        { id = "ps_s_l1", label = "L1" },
+        { id = "ps_s_r1", label = "R1" },
+        { id = "ps_s_l2", label = "L2" },
+        { id = "ps_s_r2", label = "R2" },
+    },
+}
+
+-- Flat list of all glyph IDs for easy lookup
+local ALL_GLYPH_IDS = {}
+for _, category in pairs(AVAILABLE_GLYPHS) do
+    for _, glyph in ipairs(category) do
+        table.insert(ALL_GLYPH_IDS, glyph.id)
+    end
+end
+
 -- Get current controller style config
 local function GetCurrentStyle()
     local styleName = ControlKitDB.style or DEFAULT_STYLE
@@ -112,11 +158,58 @@ local function InitDB()
     if ControlKitDB.enabled == nil then
         ControlKitDB.enabled = DEFAULT_ENABLED
     end
+    if ControlKitDB.customGlyphs == nil then
+        ControlKitDB.customGlyphs = {}
+    end
 end
 
 -- Check if glyphs are enabled
 local function IsEnabled()
     return ControlKitDB.enabled ~= false
+end
+
+-- Get the glyph for a specific bar and slot (custom or default)
+local function GetGlyphForSlot(barPrefix, slot)
+    -- Check for custom glyph first
+    if ControlKitDB.customGlyphs and ControlKitDB.customGlyphs[barPrefix] then
+        local customGlyph = ControlKitDB.customGlyphs[barPrefix][slot]
+        if customGlyph then
+            return customGlyph
+        end
+    end
+    -- Fall back to style default
+    local style = GetCurrentStyle()
+    return style.glyphs[slot]
+end
+
+-- Set a custom glyph for a specific bar and slot
+local function SetCustomGlyph(barPrefix, slot, glyphId)
+    if not ControlKitDB.customGlyphs then
+        ControlKitDB.customGlyphs = {}
+    end
+    if not ControlKitDB.customGlyphs[barPrefix] then
+        ControlKitDB.customGlyphs[barPrefix] = {}
+    end
+    ControlKitDB.customGlyphs[barPrefix][slot] = glyphId
+end
+
+-- Clear a custom glyph (revert to default)
+local function ClearCustomGlyph(barPrefix, slot)
+    if ControlKitDB.customGlyphs and ControlKitDB.customGlyphs[barPrefix] then
+        ControlKitDB.customGlyphs[barPrefix][slot] = nil
+    end
+end
+
+-- Clear all custom glyphs
+local function ClearAllCustomGlyphs()
+    ControlKitDB.customGlyphs = {}
+end
+
+-- Check if a slot has a custom glyph
+local function HasCustomGlyph(barPrefix, slot)
+    return ControlKitDB.customGlyphs 
+        and ControlKitDB.customGlyphs[barPrefix] 
+        and ControlKitDB.customGlyphs[barPrefix][slot] ~= nil
 end
 
 -- Get the current glyph size based on scale
@@ -171,11 +264,12 @@ end
 
 -- Create or update the glyph overlay on a button
 -- modifier: optional modifier glyph filename (e.g., "xbox_s_lb" for LB)
-local function SetupGlyphOverlay(button, slot, modifier)
+-- barPrefix: the bar prefix for custom glyph lookup
+local function SetupGlyphOverlay(button, slot, modifier, barPrefix)
     if not button then return end
 
-    local style = GetCurrentStyle()
-    local glyphName = style.glyphs[slot]
+    -- Use custom glyph if set, otherwise fall back to style default
+    local glyphName = GetGlyphForSlot(barPrefix or "ActionButton", slot)
     if not glyphName then return end
 
     local size = GetGlyphSize()
@@ -289,7 +383,7 @@ local function UpdateAllGlyphs()
             local buttonName = barConfig.prefix .. slot
             local button = getglobal(buttonName)
             if button then
-                SetupGlyphOverlay(button, slot, barConfig.modifier)
+                SetupGlyphOverlay(button, slot, barConfig.modifier, barConfig.prefix)
             end
         end
     end
@@ -340,7 +434,7 @@ local function CreateOptionsPanel()
     -- Main options frame
     local frame = CreateFrame("Frame", "ControlKitOptionsFrame", UIParent)
     frame:SetWidth(280)
-    frame:SetHeight(230)
+    frame:SetHeight(260)
     frame:SetPoint("CENTER", UIParent, "CENTER", 0, 50)
     frame:SetBackdrop({
         bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
@@ -442,6 +536,16 @@ local function CreateOptionsPanel()
     end)
     frame.scaleSlider = scaleSlider
     
+    -- Customize Button (opens bar editor)
+    local customizeBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    customizeBtn:SetWidth(120)
+    customizeBtn:SetHeight(22)
+    customizeBtn:SetPoint("BOTTOM", frame, "BOTTOM", 0, 50)
+    customizeBtn:SetText("Customize Glyphs")
+    customizeBtn:SetScript("OnClick", function()
+        ShowBarEditor()
+    end)
+    
     -- Reset Button
     local resetBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     resetBtn:SetWidth(100)
@@ -500,10 +604,446 @@ local function ToggleEnabled()
 end
 
 --------------------------------------------------------------------------------
+-- Glyph Picker Popup
+--------------------------------------------------------------------------------
+
+local GlyphPicker = nil
+local GlyphPickerTarget = { barPrefix = nil, slot = nil, callback = nil }
+
+local function CreateGlyphPicker()
+    if GlyphPicker then return GlyphPicker end
+    
+    local frame = CreateFrame("Frame", "ControlKitGlyphPicker", UIParent)
+    frame:SetWidth(220)
+    frame:SetHeight(280)
+    frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    frame:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        tile = true, tileSize = 32, edgeSize = 32,
+        insets = { left = 11, right = 12, top = 12, bottom = 11 }
+    })
+    frame:SetMovable(true)
+    frame:EnableMouse(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetScript("OnDragStart", function() this:StartMoving() end)
+    frame:SetScript("OnDragStop", function() this:StopMovingOrSizing() end)
+    frame:SetFrameStrata("TOOLTIP")
+    frame:Hide()
+    
+    -- Title
+    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    title:SetPoint("TOP", frame, "TOP", 0, -15)
+    title:SetText("Select Glyph")
+    frame.title = title
+    
+    -- Close button
+    local closeBtn = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+    closeBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -5, -5)
+    closeBtn:SetScript("OnClick", function() frame:Hide() end)
+    
+    -- Glyph buttons container
+    local ICON_SIZE = 28
+    local ICON_SPACING = 4
+    local ICONS_PER_ROW = 4
+    local startY = -40
+    local startX = 20
+    
+    frame.glyphButtons = {}
+    
+    -- Helper to create a section of glyph buttons
+    local function CreateGlyphSection(categoryName, glyphs, yOffset)
+        -- Category label
+        local label = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        label:SetPoint("TOPLEFT", frame, "TOPLEFT", startX, yOffset)
+        label:SetText(categoryName)
+        
+        yOffset = yOffset - 15
+        
+        for i, glyph in ipairs(glyphs) do
+            local btn = CreateFrame("Button", nil, frame)
+            btn:SetWidth(ICON_SIZE)
+            btn:SetHeight(ICON_SIZE)
+            
+            local col = ((i - 1) % ICONS_PER_ROW)
+            local row = math.floor((i - 1) / ICONS_PER_ROW)
+            btn:SetPoint("TOPLEFT", frame, "TOPLEFT", 
+                startX + col * (ICON_SIZE + ICON_SPACING), 
+                yOffset - row * (ICON_SIZE + ICON_SPACING))
+            
+            -- Icon texture
+            local icon = btn:CreateTexture(nil, "ARTWORK")
+            icon:SetAllPoints()
+            icon:SetTexture(MEDIA_PATH .. glyph.id .. ".blp")
+            btn.icon = icon
+            
+            -- Highlight texture
+            local highlight = btn:CreateTexture(nil, "HIGHLIGHT")
+            highlight:SetAllPoints()
+            highlight:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
+            highlight:SetBlendMode("ADD")
+            
+            -- Store glyph info
+            btn.glyphId = glyph.id
+            btn.glyphLabel = glyph.label
+            
+            -- Click handler
+            btn:SetScript("OnClick", function()
+                if GlyphPickerTarget.barPrefix and GlyphPickerTarget.slot then
+                    SetCustomGlyph(GlyphPickerTarget.barPrefix, GlyphPickerTarget.slot, this.glyphId)
+                    UpdateAllGlyphs()
+                    if GlyphPickerTarget.callback then
+                        GlyphPickerTarget.callback()
+                    end
+                end
+                frame:Hide()
+            end)
+            
+            -- Tooltip
+            btn:SetScript("OnEnter", function()
+                GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+                GameTooltip:SetText(this.glyphLabel)
+                GameTooltip:Show()
+            end)
+            btn:SetScript("OnLeave", function()
+                GameTooltip:Hide()
+            end)
+            
+            table.insert(frame.glyphButtons, btn)
+        end
+        
+        local numRows = math.ceil(table.getn(glyphs) / ICONS_PER_ROW)
+        return yOffset - numRows * (ICON_SIZE + ICON_SPACING) - 10
+    end
+    
+    -- Create sections for each category
+    local yPos = startY
+    yPos = CreateGlyphSection("Face Buttons:", AVAILABLE_GLYPHS.face, yPos)
+    yPos = CreateGlyphSection("Triggers/Bumpers:", AVAILABLE_GLYPHS.triggers, yPos)
+    yPos = CreateGlyphSection("D-Pad:", AVAILABLE_GLYPHS.dpad, yPos)
+    yPos = CreateGlyphSection("Other:", AVAILABLE_GLYPHS.other, yPos)
+    
+    -- Use Default button
+    local defaultBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    defaultBtn:SetWidth(80)
+    defaultBtn:SetHeight(20)
+    defaultBtn:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 20, 15)
+    defaultBtn:SetText("Default")
+    defaultBtn:SetScript("OnClick", function()
+        if GlyphPickerTarget.barPrefix and GlyphPickerTarget.slot then
+            ClearCustomGlyph(GlyphPickerTarget.barPrefix, GlyphPickerTarget.slot)
+            UpdateAllGlyphs()
+            if GlyphPickerTarget.callback then
+                GlyphPickerTarget.callback()
+            end
+        end
+        frame:Hide()
+    end)
+    
+    -- Clear button
+    local clearBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    clearBtn:SetWidth(80)
+    clearBtn:SetHeight(20)
+    clearBtn:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -20, 15)
+    clearBtn:SetText("Clear")
+    clearBtn:SetScript("OnClick", function()
+        if GlyphPickerTarget.barPrefix and GlyphPickerTarget.slot then
+            ClearCustomGlyph(GlyphPickerTarget.barPrefix, GlyphPickerTarget.slot)
+            UpdateAllGlyphs()
+            if GlyphPickerTarget.callback then
+                GlyphPickerTarget.callback()
+            end
+        end
+        frame:Hide()
+    end)
+    
+    -- ESC closes the picker
+    tinsert(UISpecialFrames, "ControlKitGlyphPicker")
+    
+    GlyphPicker = frame
+    return frame
+end
+
+-- Show the glyph picker for a specific bar and slot
+local function ShowGlyphPicker(barPrefix, slot, anchorFrame, callback)
+    local picker = CreateGlyphPicker()
+    
+    GlyphPickerTarget.barPrefix = barPrefix
+    GlyphPickerTarget.slot = slot
+    GlyphPickerTarget.callback = callback
+    
+    -- Update title
+    local barName = "Main"
+    if barPrefix == "MultiBarBottomLeftButton" then
+        barName = "LB"
+    elseif barPrefix == "MultiBarBottomRightButton" then
+        barName = "RB"
+    end
+    picker.title:SetText("Select Glyph (Slot " .. slot .. " - " .. barName .. ")")
+    
+    -- Position near anchor if provided
+    picker:ClearAllPoints()
+    if anchorFrame then
+        picker:SetPoint("TOPLEFT", anchorFrame, "TOPRIGHT", 10, 0)
+    else
+        picker:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    end
+    
+    picker:Show()
+end
+
+--------------------------------------------------------------------------------
+-- Bar Editor Panel (Customize Tab)
+--------------------------------------------------------------------------------
+
+local BarEditorPanel = nil
+
+local function CreateBarEditorPanel()
+    if BarEditorPanel then return BarEditorPanel end
+    
+    local frame = CreateFrame("Frame", "ControlKitBarEditorFrame", UIParent)
+    frame:SetWidth(380)
+    frame:SetHeight(320)
+    frame:SetPoint("CENTER", UIParent, "CENTER", 0, 50)
+    frame:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        tile = true, tileSize = 32, edgeSize = 32,
+        insets = { left = 11, right = 12, top = 12, bottom = 11 }
+    })
+    frame:SetMovable(true)
+    frame:EnableMouse(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetScript("OnDragStart", function() this:StartMoving() end)
+    frame:SetScript("OnDragStop", function() this:StopMovingOrSizing() end)
+    frame:SetFrameStrata("DIALOG")
+    frame:Hide()
+    
+    -- Title
+    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("TOP", frame, "TOP", 0, -15)
+    title:SetText("Customize Glyphs")
+    
+    -- Close button
+    local closeBtn = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+    closeBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -5, -5)
+    closeBtn:SetScript("OnClick", function() frame:Hide() end)
+    
+    -- Instructions
+    local instructions = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    instructions:SetPoint("TOP", frame, "TOP", 0, -35)
+    instructions:SetText("Click any slot to change its glyph")
+    instructions:SetTextColor(0.7, 0.7, 0.7)
+    
+    -- Bar slot button creation helper
+    local SLOT_SIZE = 26
+    local SLOT_SPACING = 2
+    frame.barSlots = {}
+    
+    local function CreateBarSlotGrid(barPrefix, barLabel, yOffset)
+        -- Bar label
+        local label = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        label:SetPoint("TOPLEFT", frame, "TOPLEFT", 20, yOffset)
+        label:SetText(barLabel)
+        
+        local slots = {}
+        for slot = 1, 12 do
+            local btn = CreateFrame("Button", nil, frame)
+            btn:SetWidth(SLOT_SIZE)
+            btn:SetHeight(SLOT_SIZE)
+            btn:SetPoint("TOPLEFT", frame, "TOPLEFT", 
+                20 + (slot - 1) * (SLOT_SIZE + SLOT_SPACING), 
+                yOffset - 18)
+            
+            -- Background
+            local bg = btn:CreateTexture(nil, "BACKGROUND")
+            bg:SetAllPoints()
+            bg:SetTexture(0.1, 0.1, 0.1, 0.8)
+            btn.bg = bg
+            
+            -- Icon texture
+            local icon = btn:CreateTexture(nil, "ARTWORK")
+            icon:SetPoint("TOPLEFT", btn, "TOPLEFT", 2, -2)
+            icon:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -2, 2)
+            btn.icon = icon
+            
+            -- Custom indicator (border when custom)
+            local customBorder = btn:CreateTexture(nil, "OVERLAY")
+            customBorder:SetAllPoints()
+            customBorder:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+            customBorder:SetBlendMode("ADD")
+            customBorder:SetVertexColor(0, 1, 0, 0.5)
+            customBorder:Hide()
+            btn.customBorder = customBorder
+            
+            -- Highlight
+            local highlight = btn:CreateTexture(nil, "HIGHLIGHT")
+            highlight:SetAllPoints()
+            highlight:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
+            highlight:SetBlendMode("ADD")
+            
+            -- Store info
+            btn.barPrefix = barPrefix
+            btn.slot = slot
+            
+            -- Click handler
+            btn:SetScript("OnClick", function()
+                ShowGlyphPicker(this.barPrefix, this.slot, this, function()
+                    -- Refresh this slot's display
+                    local glyphId = GetGlyphForSlot(this.barPrefix, this.slot)
+                    if glyphId then
+                        this.icon:SetTexture(MEDIA_PATH .. glyphId .. ".blp")
+                    end
+                    -- Update custom indicator
+                    if HasCustomGlyph(this.barPrefix, this.slot) then
+                        this.customBorder:Show()
+                    else
+                        this.customBorder:Hide()
+                    end
+                end)
+            end)
+            
+            -- Tooltip
+            btn:SetScript("OnEnter", function()
+                GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+                local glyphId = GetGlyphForSlot(this.barPrefix, this.slot)
+                local isCustom = HasCustomGlyph(this.barPrefix, this.slot)
+                GameTooltip:SetText("Slot " .. this.slot)
+                if isCustom then
+                    GameTooltip:AddLine("Custom: " .. (glyphId or "none"), 0, 1, 0)
+                else
+                    GameTooltip:AddLine("Default: " .. (glyphId or "none"), 0.7, 0.7, 0.7)
+                end
+                GameTooltip:AddLine("Click to change", 0.5, 0.5, 0.5)
+                GameTooltip:Show()
+            end)
+            btn:SetScript("OnLeave", function()
+                GameTooltip:Hide()
+            end)
+            
+            slots[slot] = btn
+        end
+        
+        frame.barSlots[barPrefix] = slots
+        return yOffset - 55
+    end
+    
+    -- Create grids for each bar
+    local yPos = -55
+    yPos = CreateBarSlotGrid("ActionButton", "Main Action Bar:", yPos)
+    yPos = CreateBarSlotGrid("MultiBarBottomLeftButton", "LB (Shift) Bar:", yPos)
+    yPos = CreateBarSlotGrid("MultiBarBottomRightButton", "RB (Alt) Bar:", yPos)
+    
+    -- Reset All button
+    local resetAllBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    resetAllBtn:SetWidth(150)
+    resetAllBtn:SetHeight(22)
+    resetAllBtn:SetPoint("BOTTOM", frame, "BOTTOM", 0, 20)
+    resetAllBtn:SetText("Reset All to Defaults")
+    resetAllBtn:SetScript("OnClick", function()
+        ClearAllCustomGlyphs()
+        UpdateAllGlyphs()
+        -- Refresh all slot displays
+        RefreshBarEditorSlots()
+        Print("All custom glyphs cleared.")
+    end)
+    
+    -- ESC closes
+    tinsert(UISpecialFrames, "ControlKitBarEditorFrame")
+    
+    BarEditorPanel = frame
+    return frame
+end
+
+-- Refresh the bar editor slot displays
+local function RefreshBarEditorSlots()
+    if not BarEditorPanel then return end
+    
+    for barPrefix, slots in pairs(BarEditorPanel.barSlots) do
+        for slot, btn in pairs(slots) do
+            local glyphId = GetGlyphForSlot(barPrefix, slot)
+            if glyphId then
+                btn.icon:SetTexture(MEDIA_PATH .. glyphId .. ".blp")
+            end
+            -- Update custom indicator
+            if HasCustomGlyph(barPrefix, slot) then
+                btn.customBorder:Show()
+            else
+                btn.customBorder:Hide()
+            end
+        end
+    end
+end
+
+-- Show the bar editor
+local function ShowBarEditor()
+    local editor = CreateBarEditorPanel()
+    RefreshBarEditorSlots()
+    editor:Show()
+end
+
+-- Toggle bar editor
+local function ToggleBarEditor()
+    local editor = CreateBarEditorPanel()
+    if editor:IsShown() then
+        editor:Hide()
+    else
+        RefreshBarEditorSlots()
+        editor:Show()
+    end
+end
+
+--------------------------------------------------------------------------------
+-- Alt+Click Hook for Action Buttons
+--------------------------------------------------------------------------------
+
+local function HookActionButtonClicks()
+    local actionBars = GetActionBars()
+    
+    for _, barConfig in ipairs(actionBars) do
+        for slot = 1, 12 do
+            local buttonName = barConfig.prefix .. slot
+            local button = getglobal(buttonName)
+            
+            if button and not button.ControlKitClickHooked then
+                local originalOnClick = button:GetScript("OnClick")
+                
+                button:SetScript("OnClick", function()
+                    -- Check for Alt+Click to open glyph picker
+                    if IsAltKeyDown() and arg1 == "LeftButton" then
+                        -- Get the bar prefix from the button name
+                        local prefix = string.gsub(this:GetName(), "%d+$", "")
+                        local slotNum = tonumber(string.match(this:GetName(), "(%d+)$"))
+                        
+                        ShowGlyphPicker(prefix, slotNum, this, function()
+                            UpdateAllGlyphs()
+                        end)
+                        return  -- Don't execute original click
+                    end
+                    
+                    -- Call original click handler
+                    if originalOnClick then
+                        originalOnClick()
+                    end
+                end)
+                
+                button.ControlKitClickHooked = true
+            end
+        end
+    end
+end
+
+--------------------------------------------------------------------------------
 -- Game Menu (ESC) Button
 --------------------------------------------------------------------------------
 
 local function CreateGameMenuButton()
+    -- Safety check - make sure GameMenuFrame exists
+    if not GameMenuFrame then return end
+    
+    -- Don't create if already exists
+    if GameMenuButtonControlKit then return end
+    
     -- Create ControlKit button for the game menu
     local menuButton = CreateFrame("Button", "GameMenuButtonControlKit", GameMenuFrame, "GameMenuButtonTemplate")
     menuButton:SetText("ControlKit")
@@ -513,19 +1053,47 @@ local function CreateGameMenuButton()
         ToggleOptionsPanel()
     end)
     
-    -- Position the button above the Options button
-    -- We need to move some buttons down to make room
-    local buttonHeight = GameMenuButtonOptions:GetHeight() + 1
+    -- Find a valid anchor button (try different buttons that might exist)
+    local anchorButton = nil
+    local buttonsToTry = {
+        "GameMenuButtonOptions",
+        "GameMenuButtonSoundOptions",
+        "GameMenuButtonUIOptions",
+        "GameMenuButtonKeybindings",
+    }
     
-    -- Move buttons down to make room for ControlKit
-    GameMenuButtonOptions:ClearAllPoints()
-    GameMenuButtonOptions:SetPoint("TOP", menuButton, "BOTTOM", 0, -1)
+    for _, btnName in ipairs(buttonsToTry) do
+        local btn = getglobal(btnName)
+        if btn then
+            anchorButton = btn
+            break
+        end
+    end
     
-    -- Position ControlKit button where Options was (below UIOptions/Video)
-    menuButton:SetPoint("TOP", GameMenuButtonUIOptions, "BOTTOM", 0, -1)
+    if not anchorButton then
+        -- Fallback: position at top of menu frame
+        menuButton:SetPoint("TOP", GameMenuFrame, "TOP", 0, -10)
+        return
+    end
     
-    -- Expand the game menu frame to fit the new button
-    GameMenuFrame:SetHeight(GameMenuFrame:GetHeight() + buttonHeight)
+    -- Get button height for spacing
+    local buttonHeight = anchorButton:GetHeight() + 1
+    
+    -- Position ControlKit button at the anchor's current position
+    local point, relativeTo, relativePoint, xOfs, yOfs = anchorButton:GetPoint(1)
+    if point and relativeTo then
+        menuButton:SetPoint(point, relativeTo, relativePoint, xOfs or 0, yOfs or 0)
+        
+        -- Move the anchor button down below ControlKit
+        anchorButton:ClearAllPoints()
+        anchorButton:SetPoint("TOP", menuButton, "BOTTOM", 0, -1)
+        
+        -- Expand the game menu frame to fit the new button
+        GameMenuFrame:SetHeight(GameMenuFrame:GetHeight() + buttonHeight)
+    else
+        -- Simple fallback positioning
+        menuButton:SetPoint("TOP", anchorButton, "TOP", 0, buttonHeight)
+    end
 end
 
 -- Slash command handler
@@ -548,6 +1116,7 @@ local function SlashHandler(msg)
     if cmd == "help" then
         Print("Commands:")
         Print("  /ck - Open options panel")
+        Print("  /ck customize - Open glyph customization panel")
         Print("  /ck toggle - Toggle glyphs on/off")
         Print("  /ck enable - Enable glyphs")
         Print("  /ck disable - Disable glyphs")
@@ -555,6 +1124,12 @@ local function SlashHandler(msg)
         Print("  /ck scale <number> - Set glyph scale (default: 1.0)")
         Print("  /ck reset - Reset to default settings")
         Print("  /ck status - Show current settings")
+        Print("  Alt+Click action buttons to customize individual glyphs")
+        return
+    end
+    
+    if cmd == "customize" or cmd == "custom" or cmd == "edit" then
+        ShowBarEditor()
         return
     end
     
@@ -626,7 +1201,8 @@ ControlKit:SetScript("OnEvent", function()
         InitDB()
         CreateGameMenuButton()
         UpdateAllGlyphs()
-        Print("Loaded. Type /ck to open options.")
+        HookActionButtonClicks()
+        Print("Loaded. Type /ck to open options. Alt+Click action buttons to customize.")
     elseif event == "ACTIONBAR_PAGE_CHANGED" then
         UpdateAllGlyphs()
     elseif event == "ACTIONBAR_SLOT_CHANGED" then
