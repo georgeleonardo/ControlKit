@@ -117,14 +117,6 @@ local AVAILABLE_GLYPHS = {
     },
 }
 
--- Flat list of all glyph IDs for easy lookup
-local ALL_GLYPH_IDS = {}
-for _, category in pairs(AVAILABLE_GLYPHS) do
-    for _, glyph in ipairs(category) do
-        table.insert(ALL_GLYPH_IDS, glyph.id)
-    end
-end
-
 -- Get current controller style config
 local function GetCurrentStyle()
     local styleName = ControlKitDB.style or DEFAULT_STYLE
@@ -709,7 +701,7 @@ local function CreateGlyphPicker()
                 GameTooltip:Hide()
             end)
             
-            table.insert(frame.glyphButtons, btn)
+            tinsert(frame.glyphButtons, btn)
         end
         
         local numRows = math.ceil(table.getn(glyphs) / ICONS_PER_ROW)
@@ -888,17 +880,21 @@ local function CreateBarEditorPanel()
             
             -- Click handler
             btn:SetScript("OnClick", function()
-                ShowGlyphPicker(this.barPrefix, this.slot, this, function()
+                -- Capture button reference for callback
+                local clickedBtn = this
+                local btnBarPrefix = this.barPrefix
+                local btnSlot = this.slot
+                ShowGlyphPicker(btnBarPrefix, btnSlot, clickedBtn, function()
                     -- Refresh this slot's display
-                    local glyphId = GetGlyphForSlot(this.barPrefix, this.slot)
+                    local glyphId = GetGlyphForSlot(btnBarPrefix, btnSlot)
                     if glyphId then
-                        this.icon:SetTexture(MEDIA_PATH .. glyphId .. ".blp")
+                        clickedBtn.icon:SetTexture(MEDIA_PATH .. glyphId .. ".blp")
                     end
                     -- Update custom indicator
-                    if HasCustomGlyph(this.barPrefix, this.slot) then
-                        this.customBorder:Show()
+                    if HasCustomGlyph(btnBarPrefix, btnSlot) then
+                        clickedBtn.customBorder:Show()
                     else
-                        this.customBorder:Hide()
+                        clickedBtn.customBorder:Hide()
                     end
                 end)
             end)
