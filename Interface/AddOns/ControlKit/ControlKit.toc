@@ -1,0 +1,8 @@
+## Interface: 11200
+## Title: ControlKit
+## Notes: Displays controller glyph icons on action bar buttons
+## Author: ControlKit
+## Version: 1.0.0
+## SavedVariables: ControlKitDB
+
+ControlKit.lua
