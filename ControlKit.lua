@@ -6,36 +6,74 @@ ControlKitDB = ControlKitDB or {}
 
 -- Default settings
 local DEFAULT_SCALE = 1.0
+local DEFAULT_STYLE = "xbox"
 local DEFAULT_SIZE = 18
 local DEFAULT_OFFSET_X = 2
 local DEFAULT_OFFSET_Y = -2
 local OUT_OF_RANGE_ALPHA = 0.5  -- Opacity when out of casting range
 local IN_RANGE_ALPHA = 1.0     -- Opacity when in range
 
--- Action bar configurations
--- prefix: button name prefix, modifier: glyph file for modifier key (nil for main bar)
-local ACTION_BARS = {
-    { prefix = "ActionButton",              modifier = nil },          -- Main bar (no modifier)
-    { prefix = "MultiBarBottomLeftButton",  modifier = "xbox_s_lb" },  -- LB (Shift) bar
-    { prefix = "MultiBarBottomRightButton", modifier = "xbox_s_rb" },  -- RB (Alt) bar
+-- Controller style definitions
+-- Each style has: glyphs (slot mappings), lb (left bumper), rb (right bumper)
+local CONTROLLER_STYLES = {
+    xbox = {
+        name = "Xbox",
+        glyphs = {
+            [1]  = "xbox_s_lt",     -- LT (Left Trigger)
+            [2]  = "xbox_s_rt",     -- RT (Right Trigger)
+            [3]  = "all_g_left",    -- P1 (Left Paddle/Grip)
+            [4]  = "all_g_right",   -- P2 (Right Paddle/Grip)
+            [5]  = "xbox_r_a",      -- A
+            [6]  = "xbox_r_x",      -- X
+            [7]  = "xbox_r_y",      -- Y
+            [8]  = "xbox_r_b",      -- B
+            [9]  = "dpad_down",     -- D-Pad Down
+            [10] = "dpad_left",     -- D-Pad Left
+            [11] = "dpad_up",       -- D-Pad Up
+            [12] = "dpad_right",    -- D-Pad Right
+        },
+        lb = "xbox_s_lb",  -- Left Bumper (Shift modifier)
+        rb = "xbox_s_rb",  -- Right Bumper (Alt modifier)
+    },
+    playstation = {
+        name = "PlayStation",
+        glyphs = {
+            [1]  = "ps_s_l2",       -- L2 (Left Trigger)
+            [2]  = "ps_s_r2",       -- R2 (Right Trigger)
+            [3]  = "all_g_left",    -- P1 (Left Paddle/Grip)
+            [4]  = "all_g_right",   -- P2 (Right Paddle/Grip)
+            [5]  = "ps_r_cross",    -- Cross (X)
+            [6]  = "ps_r_square",   -- Square
+            [7]  = "ps_r_triangle", -- Triangle
+            [8]  = "ps_r_circle",   -- Circle
+            [9]  = "dpad_down",     -- D-Pad Down
+            [10] = "dpad_left",     -- D-Pad Left
+            [11] = "dpad_up",       -- D-Pad Up
+            [12] = "dpad_right",    -- D-Pad Right
+        },
+        lb = "ps_s_l1",  -- L1 (Shift modifier)
+        rb = "ps_s_r1",  -- R1 (Alt modifier)
+    },
 }
 
--- Base glyph mapping: slot -> texture filename (without extension)
--- Reused across all bars, modifiers are added separately
-local BASE_GLYPH_MAP = {
-    [1]  = "xbox_s_lt",     -- LT (Left Trigger)
-    [2]  = "xbox_s_rt",     -- RT (Right Trigger)
-    [3]  = "all_l_stick",   -- P1 (Left Stick Click)
-    [4]  = "all_r_stick",   -- P2 (Right Stick Click)
-    [5]  = "xbox_r_a",      -- A
-    [6]  = "xbox_r_x",      -- X
-    [7]  = "xbox_r_y",      -- Y
-    [8]  = "xbox_r_b",      -- B
-    [9]  = "dpad_down",     -- D-Pad Down
-    [10] = "dpad_left",     -- D-Pad Left
-    [11] = "dpad_up",       -- D-Pad Up
-    [12] = "dpad_right",    -- D-Pad Right
-}
+-- Available style names for iteration
+local STYLE_LIST = { "xbox", "playstation" }
+
+-- Get current controller style config
+local function GetCurrentStyle()
+    local styleName = ControlKitDB.style or DEFAULT_STYLE
+    return CONTROLLER_STYLES[styleName] or CONTROLLER_STYLES[DEFAULT_STYLE]
+end
+
+-- Action bar configurations (dynamically uses current style's modifiers)
+local function GetActionBars()
+    local style = GetCurrentStyle()
+    return {
+        { prefix = "ActionButton",              modifier = nil },       -- Main bar (no modifier)
+        { prefix = "MultiBarBottomLeftButton",  modifier = style.lb },  -- LB/L1 (Shift) bar
+        { prefix = "MultiBarBottomRightButton", modifier = style.rb },  -- RB/R1 (Alt) bar
+    }
+end
 
 -- Addon media path
 local MEDIA_PATH = "Interface\\AddOns\\ControlKit\\media\\"
@@ -47,6 +85,9 @@ local ControlKit = CreateFrame("Frame", "ControlKitFrame", UIParent)
 local function InitDB()
     if ControlKitDB.scale == nil then
         ControlKitDB.scale = DEFAULT_SCALE
+    end
+    if ControlKitDB.style == nil then
+        ControlKitDB.style = DEFAULT_STYLE
     end
 end
 
@@ -105,7 +146,8 @@ end
 local function SetupGlyphOverlay(button, slot, modifier)
     if not button then return end
 
-    local glyphName = BASE_GLYPH_MAP[slot]
+    local style = GetCurrentStyle()
+    local glyphName = style.glyphs[slot]
     if not glyphName then return end
 
     local size = GetGlyphSize()
@@ -182,7 +224,8 @@ end
 
 -- Update all action button glyphs across all configured bars
 local function UpdateAllGlyphs()
-    for _, barConfig in ipairs(ACTION_BARS) do
+    local actionBars = GetActionBars()
+    for _, barConfig in ipairs(actionBars) do
         for slot = 1, 12 do
             local buttonName = barConfig.prefix .. slot
             local button = getglobal(buttonName)
@@ -197,8 +240,9 @@ end
 local function RefreshGlyphs()
     local size = GetGlyphSize()
     local modifierSize = size * 0.7
+    local actionBars = GetActionBars()
 
-    for _, barConfig in ipairs(ACTION_BARS) do
+    for _, barConfig in ipairs(actionBars) do
         for slot = 1, 12 do
             local buttonName = barConfig.prefix .. slot
             local button = getglobal(buttonName)
@@ -225,21 +269,185 @@ local function Print(msg)
     end
 end
 
+--------------------------------------------------------------------------------
+-- Settings UI Panel
+--------------------------------------------------------------------------------
+
+local ControlKitOptions = nil  -- Will hold the options frame
+
+local function CreateOptionsPanel()
+    if ControlKitOptions then return ControlKitOptions end
+    
+    -- Main options frame
+    local frame = CreateFrame("Frame", "ControlKitOptionsFrame", UIParent)
+    frame:SetWidth(280)
+    frame:SetHeight(200)
+    frame:SetPoint("CENTER", UIParent, "CENTER", 0, 50)
+    frame:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        tile = true, tileSize = 32, edgeSize = 32,
+        insets = { left = 11, right = 12, top = 12, bottom = 11 }
+    })
+    frame:SetMovable(true)
+    frame:EnableMouse(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetScript("OnDragStart", function() this:StartMoving() end)
+    frame:SetScript("OnDragStop", function() this:StopMovingOrSizing() end)
+    frame:SetFrameStrata("DIALOG")
+    frame:Hide()
+    
+    -- Title text
+    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("TOP", frame, "TOP", 0, -20)
+    title:SetText("ControlKit Options")
+    
+    -- Close button
+    local closeBtn = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+    closeBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -5, -5)
+    closeBtn:SetScript("OnClick", function() frame:Hide() end)
+    
+    -- Controller Style Label
+    local styleLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    styleLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 25, -55)
+    styleLabel:SetText("Controller Style:")
+    
+    -- Controller Style Dropdown
+    local styleDropdown = CreateFrame("Frame", "ControlKitStyleDropdown", frame, "UIDropDownMenuTemplate")
+    styleDropdown:SetPoint("TOPLEFT", styleLabel, "BOTTOMLEFT", -15, -5)
+    
+    local function StyleDropdown_OnClick()
+        ControlKitDB.style = this.value
+        UIDropDownMenu_SetSelectedValue(styleDropdown, this.value)
+        UIDropDownMenu_SetText(CONTROLLER_STYLES[this.value].name, styleDropdown)
+        UpdateAllGlyphs()
+    end
+    
+    local function StyleDropdown_Initialize()
+        local info = {}
+        for _, styleName in ipairs(STYLE_LIST) do
+            info.text = CONTROLLER_STYLES[styleName].name
+            info.value = styleName
+            info.func = StyleDropdown_OnClick
+            info.checked = (ControlKitDB.style == styleName)
+            UIDropDownMenu_AddButton(info)
+        end
+    end
+    
+    UIDropDownMenu_Initialize(styleDropdown, StyleDropdown_Initialize)
+    UIDropDownMenu_SetWidth(150, styleDropdown)
+    UIDropDownMenu_SetSelectedValue(styleDropdown, ControlKitDB.style or DEFAULT_STYLE)
+    UIDropDownMenu_SetText(GetCurrentStyle().name, styleDropdown)
+    frame.styleDropdown = styleDropdown
+    
+    -- Scale Label
+    local scaleLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    scaleLabel:SetPoint("TOPLEFT", styleDropdown, "BOTTOMLEFT", 15, -15)
+    scaleLabel:SetText("Glyph Scale:")
+    
+    -- Scale Slider
+    local scaleSlider = CreateFrame("Slider", "ControlKitScaleSlider", frame, "OptionsSliderTemplate")
+    scaleSlider:SetPoint("TOPLEFT", scaleLabel, "BOTTOMLEFT", 0, -15)
+    scaleSlider:SetWidth(180)
+    scaleSlider:SetHeight(17)
+    scaleSlider:SetMinMaxValues(0.5, 2.0)
+    scaleSlider:SetValueStep(0.1)
+    scaleSlider:SetObeyStepOnDrag(true)
+    scaleSlider:SetValue(ControlKitDB.scale or DEFAULT_SCALE)
+    
+    getglobal(scaleSlider:GetName() .. "Low"):SetText("0.5")
+    getglobal(scaleSlider:GetName() .. "High"):SetText("2.0")
+    getglobal(scaleSlider:GetName() .. "Text"):SetText(string.format("%.1f", ControlKitDB.scale or DEFAULT_SCALE))
+    
+    scaleSlider:SetScript("OnValueChanged", function()
+        local value = math.floor(this:GetValue() * 10 + 0.5) / 10  -- Round to 1 decimal
+        ControlKitDB.scale = value
+        getglobal(this:GetName() .. "Text"):SetText(string.format("%.1f", value))
+        UpdateAllGlyphs()
+    end)
+    frame.scaleSlider = scaleSlider
+    
+    -- Reset Button
+    local resetBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    resetBtn:SetWidth(100)
+    resetBtn:SetHeight(22)
+    resetBtn:SetPoint("BOTTOM", frame, "BOTTOM", 0, 20)
+    resetBtn:SetText("Reset")
+    resetBtn:SetScript("OnClick", function()
+        ControlKitDB.scale = DEFAULT_SCALE
+        ControlKitDB.style = DEFAULT_STYLE
+        -- Update UI elements
+        UIDropDownMenu_SetSelectedValue(styleDropdown, DEFAULT_STYLE)
+        UIDropDownMenu_SetText(CONTROLLER_STYLES[DEFAULT_STYLE].name, styleDropdown)
+        scaleSlider:SetValue(DEFAULT_SCALE)
+        getglobal(scaleSlider:GetName() .. "Text"):SetText(string.format("%.1f", DEFAULT_SCALE))
+        UpdateAllGlyphs()
+        Print("Settings reset to defaults.")
+    end)
+    
+    -- ESC key closes the frame
+    tinsert(UISpecialFrames, "ControlKitOptionsFrame")
+    
+    ControlKitOptions = frame
+    return frame
+end
+
+-- Toggle options panel
+local function ToggleOptionsPanel()
+    local panel = CreateOptionsPanel()
+    if panel:IsShown() then
+        panel:Hide()
+    else
+        -- Refresh UI values before showing
+        if panel.styleDropdown then
+            UIDropDownMenu_SetSelectedValue(panel.styleDropdown, ControlKitDB.style or DEFAULT_STYLE)
+            UIDropDownMenu_SetText(GetCurrentStyle().name, panel.styleDropdown)
+        end
+        if panel.scaleSlider then
+            panel.scaleSlider:SetValue(ControlKitDB.scale or DEFAULT_SCALE)
+        end
+        panel:Show()
+    end
+end
+
 -- Slash command handler
 local function SlashHandler(msg)
     if not msg or msg == "" then
-        Print("Commands:")
-        Print("  /ck scale <number> - Set glyph scale (default: 1.0)")
-        Print("  /ck reset - Reset to default settings")
-        Print("  /ck status - Show current settings")
+        -- No argument: open the options panel
+        ToggleOptionsPanel()
         return
     end
 
     -- Parse command and arguments
     local cmd, arg1 = string.match(msg, "^(%S+)%s*(.*)$")
     cmd = string.lower(cmd or "")
+    
+    if cmd == "config" or cmd == "options" or cmd == "opt" then
+        ToggleOptionsPanel()
+        return
+    end
+    
+    if cmd == "help" then
+        Print("Commands:")
+        Print("  /ck - Open options panel")
+        Print("  /ck style <xbox|playstation> - Change controller style")
+        Print("  /ck scale <number> - Set glyph scale (default: 1.0)")
+        Print("  /ck reset - Reset to default settings")
+        Print("  /ck status - Show current settings")
+        return
+    end
 
-    if cmd == "scale" then
+    if cmd == "style" then
+        local styleName = string.lower(arg1 or "")
+        if CONTROLLER_STYLES[styleName] then
+            ControlKitDB.style = styleName
+            UpdateAllGlyphs()
+            Print("Controller style set to: " .. CONTROLLER_STYLES[styleName].name)
+        else
+            Print("Available styles: xbox, playstation")
+            Print("Current style: " .. GetCurrentStyle().name)
+        end
+    elseif cmd == "scale" then
         local newScale = tonumber(arg1)
         if newScale and newScale > 0 and newScale <= 5 then
             ControlKitDB.scale = newScale
@@ -251,9 +459,11 @@ local function SlashHandler(msg)
         end
     elseif cmd == "reset" then
         ControlKitDB.scale = DEFAULT_SCALE
-        RefreshGlyphs()
+        ControlKitDB.style = DEFAULT_STYLE
+        UpdateAllGlyphs()
         Print("Settings reset to defaults.")
     elseif cmd == "status" then
+        Print("Controller style: " .. GetCurrentStyle().name)
         Print("Current scale: " .. (ControlKitDB.scale or DEFAULT_SCALE))
         Print("Glyph size: " .. GetGlyphSize() .. "px")
     else
@@ -272,7 +482,7 @@ ControlKit:SetScript("OnEvent", function()
     if event == "PLAYER_ENTERING_WORLD" then
         InitDB()
         UpdateAllGlyphs()
-        Print("Loaded. Type /ck for options.")
+        Print("Loaded. Type /ck to open options.")
     elseif event == "ACTIONBAR_PAGE_CHANGED" then
         UpdateAllGlyphs()
     elseif event == "ACTIONBAR_SLOT_CHANGED" then
